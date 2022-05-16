@@ -68,8 +68,8 @@ RUN set -ex; \
     } > $PHP_INI_DIR/conf.d/phpmyadmin-misc.ini
 
 # Calculate download URL
-ENV VERSION 5.1.3
-ENV SHA256 c562feddc0f8ff5e69629113f273a0d024a65fb928c48e89ce614744d478296f
+ENV VERSION 5.2.0
+ENV SHA256 66da31ca295f06182ac3f2e6e96057dc824c459baedf4b29de6ed0d3be039230
 ENV URL https://files.phpmyadmin.net/phpMyAdmin/${VERSION}/phpMyAdmin-${VERSION}-all-languages.tar.xz
 
 LABEL org.opencontainers.image.title="Official phpMyAdmin Docker image" \
@@ -109,7 +109,10 @@ RUN set -ex; \
     gpgconf --kill all; \
     rm -r "$GNUPGHOME" phpMyAdmin.tar.xz phpMyAdmin.tar.xz.asc; \
     rm -r -v /var/www/html/setup/ /var/www/html/examples/ /var/www/html/js/src/ /var/www/html/templates/test/ /var/www/html/babel.config.json /var/www/html/doc/html/_sources/ /var/www/html/RELEASE-DATE-$VERSION /var/www/html/CONTRIBUTING.md; \
-    sed -i "s@define('CONFIG_DIR'.*@define('CONFIG_DIR', '/etc/phpmyadmin/');@" /var/www/html/libraries/vendor_config.php; \
+    grep -q -F "'configFile' => ROOT_PATH . 'config.inc.php'," /var/www/html/libraries/vendor_config.php; \
+    sed -i "s@'configFile' => .*@'configFile' => '/etc/phpmyadmin/config.inc.php',@" /var/www/html/libraries/vendor_config.php; \
+    grep -q -F "'configFile' => '/etc/phpmyadmin/config.inc.php'," /var/www/html/libraries/vendor_config.php; \
+    php -l /var/www/html/libraries/vendor_config.php; \
     \
     apt-mark auto '.*' > /dev/null; \
     apt-mark manual $savedAptMark; \
