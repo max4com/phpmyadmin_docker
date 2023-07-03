@@ -1,4 +1,5 @@
-FROM php:8.1-apache
+# DO NOT EDIT: created by update.sh from Dockerfile-debian.template
+FROM php:8.2-apache
 
 # Install dependencies
 RUN set -ex; \
@@ -23,12 +24,15 @@ RUN set -ex; \
         mysqli \
         opcache \
         zip \
+        bcmath \
     ; \
     \
     apt-mark auto '.*' > /dev/null; \
     apt-mark manual $savedAptMark; \
-    ldd "$(php -r 'echo ini_get("extension_dir");')"/*.so \
+    extdir="$(php -r 'echo ini_get("extension_dir");')"; \
+    ldd "$extdir"/*.so \
         | awk '/=>/ { print $3 }' \
+        | awk '{print $1} {system("realpath " $1)}' \
         | sort -u \
         | xargs -r dpkg-query -S \
         | cut -d: -f1 \
@@ -36,7 +40,9 @@ RUN set -ex; \
         | xargs -rt apt-mark manual; \
     \
     apt-get purge -y --auto-remove -o APT::AutoRemove::RecommendsImportant=false; \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/*; \
+    ldd "$extdir"/*.so | grep -qzv "=> not found" || (echo "Sanity check failed: missing libraries:"; ldd "$extdir"/*.so | grep " => not found"; exit 1); \
+    ldd "$extdir"/*.so | grep -q "libzip.so.* => .*/libzip.so.*" || (echo "Sanity check failed: libzip.so is not referenced"; ldd "$extdir"/*.so; exit 1);
 
 # set recommended PHP.ini settings
 # see https://secure.php.net/manual/en/opcache.installation.php
@@ -44,6 +50,7 @@ ENV MAX_EXECUTION_TIME 600
 ENV MEMORY_LIMIT 512M
 ENV UPLOAD_LIMIT 2048K
 ENV TZ UTC
+ENV SESSION_SAVE_PATH /sessions
 RUN set -ex; \
     \
     { \
@@ -67,6 +74,7 @@ RUN set -ex; \
         echo 'post_max_size=${UPLOAD_LIMIT}'; \
         echo 'upload_max_filesize=${UPLOAD_LIMIT}'; \
         echo 'date.timezone=${TZ}'; \
+        echo 'session.save_path=${SESSION_SAVE_PATH}'; \
     } > $PHP_INI_DIR/conf.d/phpmyadmin-misc.ini
 
 # Calculate download URL
@@ -94,6 +102,9 @@ RUN set -ex; \
         gnupg \
         dirmngr \
     ; \
+    mkdir $SESSION_SAVE_PATH; \
+    chmod 1777 $SESSION_SAVE_PATH; \
+    chown www-data:www-data $SESSION_SAVE_PATH; \
     \
     export GNUPGHOME="$(mktemp -d)"; \
     export GPGKEY="3D06A59ECE730EB71B511C17CE752F178259BD92"; \
